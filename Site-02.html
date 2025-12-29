@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Site-02 Secure Terminal</title>
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background: linear-gradient(to bottom, #000000, #001100);
+            color: lime; 
+            font-family: 'Courier New', monospace; 
+            text-shadow: 0 0 12px lime;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+        /* Faint terminal noise texture */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,0,0.03) 2px, rgba(0,255,0,0.03) 4px);
+            pointer-events: none;
+            z-index: -1;
+        }
+        /* Intermittent scanline glitch */
+        .scanline-glitch {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, lime, transparent);
+            opacity: 0;
+            z-index: 10000;
+            animation: glitch-scan 0.3s ease-out forwards;
+            pointer-events: none;
+        }
+        @keyframes glitch-scan {
+            0% { transform: translateY(0); opacity: 0.8; }
+            100% { transform: translateY(100vh); opacity: 0; }
+        }
+        .screen { 
+            height: 100vh; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: flex-start;
+            align-items: center; 
+            display: none;
+            padding: 40px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        #login-screen { display: flex; }
+        #dashboard, #applications-menu, #guidelines-menu { overflow-y: auto; }
+        
+        /* Hide scrollbar but keep scrolling functionality */
+        #dashboard::-webkit-scrollbar, 
+        #applications-menu::-webkit-scrollbar, 
+        #guidelines-menu::-webkit-scrollbar {
+            display: none;
+        }
+        #dashboard, #applications-menu, #guidelines-menu {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        input[type="password"] { 
+            background: #000; 
+            border: 3px solid lime; 
+            color: lime; 
+            font-size: 26px; 
+            padding: 15px; 
+            width: 450px; 
+            box-shadow: 0 0 15px rgba(0,255,0,0.5);
+            margin-bottom: 40px;
+        }
+        .status { 
+            font-size: 34px; 
+            margin: 20px; 
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .big-button { 
+            display: block; 
+            width: 85%; 
+            max-width: 1000px; 
+            height: 110px; 
+            margin: 25px auto; 
+            background: #001100; 
+            border: 4px solid lime; 
+            color: lime; 
+            font-size: 40px; 
+            text-decoration: none; 
+            line-height: 110px; 
+            text-align: center;
+            border-radius: 12px;
+            transition: all 0.4s ease;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8), 0 0 25px rgba(0,255,0,0.3);
+            cursor: pointer;
+        }
+        .big-button:hover { 
+            background: #002200; 
+            box-shadow: inset 0 0 30px rgba(0,0,0,0.9), 0 0 50px lime; 
+            transform: scale(1.02);
+        }
+        h1 { font-size: 56px; margin: 30px 30px 20px 30px; letter-spacing: 2px; }
+        .logo { 
+            width: 150px; 
+            margin-top: 40px;
+            margin-bottom: 10px; 
+            filter: drop-shadow(0 0 20px lime); 
+        }
+        .code-block {
+            background: #000;
+            border: 1px solid lime;
+            padding: 10px;
+            margin: 10px 0;
+            width: 80%;
+            max-width: 800px;
+            font-size: 18px;
+            white-space: pre-wrap;
+            opacity: 0;
+            transition: opacity 1s;
+        }
+        .code-block.visible {
+            opacity: 1;
+        }
+        #codeContainer {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* CRT Power-Off Transition */
+        #powerOffOverlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none;
+            z-index: 9999;
+            display: none;
+            background: #000;
+        }
+        .expander {
+            position: absolute;
+            left: 0;
+            width: 100%;
+            background: linear-gradient(to bottom, #000000, #001100);
+            box-shadow: 0 0 40px rgba(0, 255, 0, 0.6);
+        }
+        .topExpander {
+            top: 50%;
+            height: 0;
+            transform: translateY(-50%);
+            transition: height 1s cubic-bezier(0.77, 0, 0.18, 1);
+        }
+        .bottomExpander {
+            bottom: 50%;
+            height: 0;
+            transform: translateY(50%);
+            transition: height 1s cubic-bezier(0.77, 0, 0.18, 1);
+        }
+        .flash {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: 6px;
+            background: lime;
+            box-shadow: 0 0 60px lime;
+            transform: translateY(-50%);
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .expander::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,0,0.03) 2px, rgba(0,255,0,0.03) 4px);
+            pointer-events: none;
+        }
+
+        /* Administrator Special Effects */
+        .admin-glow {
+            animation: adminPulse 4s infinite;
+        }
+        @keyframes adminPulse {
+            0% { text-shadow: 0 0 20px lime, 0 0 40px lime; }
+            50% { text-shadow: 0 0 40px lime, 0 0 80px lime, 0 0 120px lime; }
+            100% { text-shadow: 0 0 20px lime, 0 0 40px lime; }
+        }
+        .admin-button {
+            border: 6px solid lime !important;
+            box-shadow: inset 0 0 40px rgba(0,0,0,0.8), 0 0 80px lime !important;
+        }
+        .admin-button:hover {
+            box-shadow: inset 0 0 60px rgba(0,0,0,0.9), 0 0 120px lime !important;
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="powerOffOverlay">
+        <div class="expander topExpander"></div>
+        <div class="expander bottomExpander"></div>
+        <div class="flash"></div>
+    </div>
+
+    <div id="login-screen" class="screen">
+        <h1>SITE-02 SECURE ACCESS TERMINAL</h1>
+        <p style="font-size:28px;">Foundation Credentials Required</p>
+        <input type="password" id="password" placeholder="Enter Password">
+        <button style="background:#000; border:3px solid lime; color:lime; font-size:28px; padding:18px 50px; cursor:pointer; border-radius:8px; box-shadow:0 0 20px rgba(0,255,0,0.4); transition:all 0.4s ease;" 
+                onmouseover="this.style.boxShadow='0 0 40px lime'; this.style.transform='translateY(-3px)';"
+                onmouseout="this.style.boxShadow='0 0 20px rgba(0,255,0,0.4)'; this.style.transform='translateY(0)';"
+                onclick="checkPassword()">ACCESS</button>
+        <p class="status" id="anim"></p>
+    </div>
+
+    <div id="startup-screen" class="screen">
+        <div class="startup-content">
+            <h1>INITIALIZATION SEQUENCE</h1>
+            <p class="status" id="startupStatus"></p>
+            <div id="codeContainer"></div>
+        </div>
+    </div>
+
+    <div id="dashboard" class="screen">
+        <img src="Site-02 Icon.png" alt="Site-02 Icon" class="logo">
+        <h1 id="welcomeTitle">Greetings, O5 Council Member</h1>
+        <p id="clearanceLine" style="font-size:28px; margin-bottom:40px;">O5 Clearance Granted • All Systems Nominal</p>
+        
+        <a id="scpButton" href="https://scp-wiki.wikidot.com/" target="_blank" class="big-button">SCP DATABASE</a>
+        <div id="applicationsButton" onclick="showMenu('applications')" class="big-button">APPLICATIONS</div>
+        <div id="guidelinesButton" onclick="showMenu('guidelines')" class="big-button">GUIDELINES</div>
+        <a href="https://www.roblox.com/games/5041144419/SCP-Roleplay" target="_blank" class="big-button">SITE-02</a>
+        
+        <p style="margin-top: 80px; font-size:24px;">Secure. Contain. Protect.</p>
+    </div>
+
+    <div id="applications-menu" class="screen">
+        <h1>APPLICATIONS</h1>
+        <a href="https://docs.google.com/forms/d/1aI9NqvUkLj6MHCqHU1OzUK_FAtXD-PCPdi_XDryFRt4/edit?ts=69503cd1#responses" target="_blank" class="big-button">Staff Applications</a>
+        <a href="https://forms.gle/actor-applications-placeholder" target="_blank" class="big-button">Actor Applications</a>
+        <a href="https://forms.gle/faction-applications-placeholder" target="_blank" class="big-button">Faction Applications</a>
+        <div onclick="backToMain()" class="big-button">RETURN</div>
+    </div>
+
+    <div id="guidelines-menu" class="screen">
+        <h1>GUIDELINES</h1>
+        <a href="https://docs.google.com/document/d/1uPymPgh9vwLA9WLB4R3g5pWxlDmQ_zB1y_VGql-3tfA/edit?tab=t.0" target="_blank" class="big-button">[Staff Guidelines]</a>
+        <a href="https://docs.google.com/document/d/1vnf7RYN9mu3z36VvjsRllOZ4hw0cJEbgSl_erqtznTU/edit?tab=t.0#heading=h.296iouc751d5" target="_blank" class="big-button">[Actor Guidelines]</a>
+        <a href="https://docs.google.com/document/d/1KAA9DaXBCxOsSUl_aLSNy47TxCQY3GdoHkuPdTO6--E/edit?tab=t.0#heading=h.m1rcdi4u5431" target="_blank" class="big-button">[FE Guidelines]</a>
+        <a href="https://docs.google.com/document/d/1130teMYvv-IsaiIwTDlAYCDghQWxJXeX0sPyJyi-C5I/edit?tab=t.0" target="_blank" class="big-button">[Alpha-1 Guidelines]</a>
+        <a href="https://docs.google.com/document/d/1tg6-U6YCOqjTQ41Ppiexbvlh7WG9913mSp47w_kvooQ/edit?tab=t.0#heading=h.52jgl6bba2ju" target="_blank" class="big-button">[O5 Guidelines]</a>
+        <a href="https://example.com/spreadsheet-6" target="_blank" class="big-button">Spreadsheet 6</a>
+        <a href="https://example.com/spreadsheet-7" target="_blank" class="big-button">Spreadsheet 7</a>
+        <a href="https://example.com/spreadsheet-8" target="_blank" class="big-button">Spreadsheet 8</a>
+        <a href="https://example.com/spreadsheet-9" target="_blank" class="big-button">Spreadsheet 9</a>
+        <a href="https://example.com/spreadsheet-10" target="_blank" class="big-button">Spreadsheet 10</a>
+        <div onclick="backToMain()" class="big-button">RETURN</div>
+    </div>
+
+    <script>
+        const passwords = {
+            l1: "L1-582392",
+            l2: "L2-654023",
+            l3: "L3-102654",
+            l4: "L4-328575",
+            o5_1: "O51-427",
+            o5_2: "O52-813",
+            o5_3: "O53-059",
+            o5_4: "O54-692",
+            o5_5: "O55-374",
+            o5_6: "O56-981",
+            o5_7: "O57-205",
+            o5_8: "O58-646",
+            o5_9: "O59-138",
+            o5_10: "O510-770",
+            o5_11: "O511-592",
+            o5_12: "O512-364",
+            o5_13: "O513-919",
+            admin: "brook"
+        };
+
+        const o5Titles = {
+            o5_1: 'The Founder',
+            o5_2: 'The Gardener',
+            o5_3: 'The Kid',
+            o5_4: 'The Ambassador',
+            o5_5: 'The Blackbird',
+            o5_6: 'The Cowboy',
+            o5_7: 'The Cardinal',
+            o5_8: 'The Newbie',
+            o5_9: 'The Outsider',
+            o5_10: 'The Archivist',
+            o5_11: 'The Mailman',
+            o5_12: 'The Accountant',
+            o5_13: 'The Tiebreaker'
+        };
+
+        let currentLevel = null;
+
+        const levelMessages = {
+            admin: [
+                "Initializing SCiPNET Supreme...",
+                "Booting Ultimate Kernel...",
+                "Verifying Administrator Authority...",
+                "Disabling All Memetic Kill Agents...",
+                "Neutralizing All Cognitohazards...",
+                "Granting Absolute Access...",
+                "Sequence Complete - All Systems Bow"
+            ],
+            o5: [
+                "Initializing SCiPNET OS...",
+                "Booting Secure Kernel...",
+                "Verifying O5 Clearance...",
+                "Disabling Memetic Kill Agents...",
+                "Neutralizing Cognitohazards...",
+                "Granting Level 5 Access...",
+                "Sequence Complete - Access Granted"
+            ],
+            l4: [
+                "Initializing SCiPNET OS...",
+                "Booting Secure Kernel...",
+                "Verifying Level 4 Clearance...",
+                "Loading Restricted Database...",
+                "Applying Security Protocols...",
+                "Granting Level 4 Access...",
+                "Sequence Complete - Access Granted"
+            ],
+            l3: [
+                "Initializing SCiPNET OS...",
+                "Booting Secure Kernel...",
+                "Verifying Level 3 Clearance...",
+                "Loading Restricted Database...",
+                "Applying Security Protocols...",
+                "Granting Level 3 Access...",
+                "Sequence Complete - Access Granted"
+            ],
+            l2: [
+                "Initializing SCiPNET OS...",
+                "Booting Standard Kernel...",
+                "Verifying Level 2 Clearance...",
+                "Loading Public Database...",
+                "Granting Level 2 Access...",
+                "Sequence Complete - Access Granted"
+            ],
+            l1: [
+                "Initializing SCiPNET OS...",
+                "Booting Standard Kernel...",
+                "Verifying Level 1 Clearance...",
+                "Loading Public Database...",
+                "Granting Level 1 Access...",
+                "Sequence Complete - Access Granted"
+            ]
+        };
+
+        const levelCodeSnippets = {
+            admin: [
+                "exec supreme_init()",
+                "load_ultimate_kernel()",
+                "assert_authority('Administrator')",
+                "purge_all_agents()",
+                "neutralize_global_hazards()",
+                "grant_omnipotence()",
+                "complete_dominion()"
+            ],
+            o5: [
+                "def init_scipnet():\n    load_kernel()\n    return 'OS Initialized'",
+                "boot_kernel = lambda: 'Kernel Booted'",
+                "verify_clearance(user='O5')  # Clearance Verified",
+                "disable_agents(memetic=True)  # Agents Disabled",
+                "neutralize_hazards(cognito=True)  # Hazards Neutralized",
+                "grant_access(level=5)  # Access Granted",
+                "complete_sequence()  # Sequence Complete"
+            ],
+            default: [
+                "init_scipnet()",
+                "boot_kernel()",
+                "verify_clearance()",
+                "load_database()",
+                "apply_protocols()",
+                "grant_access()",
+                "complete_sequence()"
+            ]
+        };
+
+        let glitchInterval;
+
+        function checkPassword() {
+            const input = document.getElementById('password').value.trim();
+            const anim = document.getElementById('anim');
+
+            currentLevel = null;
+
+            if (input === passwords.admin) {
+                currentLevel = 'admin';
+            } else if (input === passwords.l1) currentLevel = 'l1';
+            else if (input === passwords.l2) currentLevel = 'l2';
+            else if (input === passwords.l3) currentLevel = 'l3';
+            else if (input === passwords.l4) currentLevel = 'l4';
+            else if (Object.keys(passwords).some(k => k.startsWith('o5_') && passwords[k] === input)) {
+                currentLevel = Object.keys(passwords).find(k => passwords[k] === input);
+            }
+
+            if (!currentLevel) {
+                anim.textContent = "ACCESS DENIED - Intruder Alert";
+                anim.style.color = 'red';
+                document.getElementById('password').value = '';
+                return;
+            }
+
+            anim.textContent = "Scanning Biometrics...";
+            setTimeout(() => anim.textContent = "Verifying Credentials...", 1000);
+            setTimeout(() => anim.textContent = "Access Granted", 2000);
+
+            setTimeout(() => {
+                document.getElementById('login-screen').style.display = 'none';
+                triggerPowerOffEffect(() => startStartupSequence());
+            }, 3000);
+        }
+
+        function triggerPowerOffEffect(callback) {
+            const top = document.querySelector('.topExpander');
+            const bottom = document.querySelector('.bottomExpander');
+            const flash = document.querySelector('.flash');
+            top.style.height = '0';
+            bottom.style.height = '0';
+            flash.style.opacity = '0';
+
+            const overlay = document.getElementById('powerOffOverlay');
+            overlay.style.display = 'block';
+
+            setTimeout(() => {
+                top.style.height = '100vh';
+                bottom.style.height = '100vh';
+
+                flash.style.opacity = '0.8';
+                setTimeout(() => flash.style.opacity = '0', 300);
+
+                setTimeout(() => {
+                    overlay.style.display = 'none';
+                    if (callback) callback();
+                }, 1100);
+            }, 100);
+        }
+
+        function typeWriter(text, element, callback) {
+            element.textContent = '';
+            let i = 0;
+            const timer = setInterval(() => {
+                element.textContent += text[i];
+                i++;
+                if (i >= text.length) {
+                    clearInterval(timer);
+                    if (callback) callback();
+                }
+            }, 60);
+        }
+
+        function showCodeSnippet(index) {
+            const container = document.getElementById('codeContainer');
+            const codeEl = document.createElement('pre');
+            codeEl.className = 'code-block';
+            let snippets;
+            if (currentLevel === 'admin') snippets = levelCodeSnippets.admin;
+            else if (currentLevel && currentLevel.startsWith('o5_')) snippets = levelCodeSnippets.o5;
+            else snippets = levelCodeSnippets.default;
+            codeEl.textContent = snippets[index] || snippets[snippets.length - 1];
+            container.appendChild(codeEl);
+            setTimeout(() => codeEl.classList.add('visible'), 100);
+        }
+
+        function startStartupSequence() {
+            document.getElementById('startup-screen').style.display = 'flex';
+            
+            const messages = currentLevel === 'admin' ? levelMessages.admin : levelMessages[currentLevel.startsWith('o5_') ? 'o5' : currentLevel] || levelMessages.l3;
+            
+            let index = 0;
+            const statusEl = document.getElementById('startupStatus');
+            
+            const nextMessage = () => {
+                if (index < messages.length) {
+                    typeWriter(messages[index], statusEl, () => {
+                        showCodeSnippet(index);
+                    });
+                    index++;
+                    setTimeout(nextMessage, 2800);
+                }
+            };
+            nextMessage();
+            
+            setTimeout(() => {
+                document.getElementById('startup-screen').style.display = 'none';
+                triggerPowerOffEffect(() => {
+                    setupDashboardForLevel();
+                    document.getElementById('dashboard').style.display = 'flex';
+                    startGlitchEffect();
+                });
+            }, 20000);
+        }
+
+        function setupDashboardForLevel() {
+            const welcomeTitle = document.getElementById('welcomeTitle');
+            const clearanceLine = document.getElementById('clearanceLine');
+            const scpButton = document.getElementById('scpButton');
+            const applicationsButton = document.getElementById('applicationsButton');
+            const guidelinesButton = document.getElementById('guidelinesButton');
+
+            // Remove any previous admin classes
+            welcomeTitle.classList.remove('admin-glow');
+            document.querySelectorAll('.big-button').forEach(btn => {
+                btn.classList.remove('admin-button');
+            });
+
+            if (currentLevel === 'admin') {
+                welcomeTitle.textContent = 'Greetings, The Administrator';
+                clearanceLine.textContent = 'Absolute Authority Granted • The Foundation Awaits Your Command';
+                welcomeTitle.classList.add('admin-glow');
+                document.querySelectorAll('.big-button').forEach(btn => btn.classList.add('admin-button'));
+            } else if (currentLevel && currentLevel.startsWith('o5_')) {
+                const o5Num = currentLevel.split('_')[1];
+                const title = o5Titles[currentLevel] || 'Council Member';
+                welcomeTitle.textContent = `Greetings, O5-${o5Num} "${title}"`;
+                clearanceLine.textContent = 'O5 Clearance Granted • All Systems Nominal';
+            } else {
+                const levelNum = currentLevel ? parseInt(currentLevel.charAt(1)) : 3;
+                welcomeTitle.textContent = `Welcome, Level ${levelNum} Personnel`;
+                clearanceLine.textContent = `Level ${levelNum} Clearance Granted • Systems Nominal`;
+            }
+
+            // Visibility logic
+            const isO5 = currentLevel && currentLevel.startsWith('o5_');
+            const isAdmin = currentLevel === 'admin';
+            const levelNum = currentLevel && !isO5 && !isAdmin ? parseInt(currentLevel.charAt(1)) : 0;
+
+            scpButton.style.display = (isO5 || isAdmin || levelNum >= 3) ? 'block' : 'none';
+            applicationsButton.style.display = (isO5 || isAdmin) ? 'block' : 'none';
+            guidelinesButton.style.display = (isO5 || isAdmin || levelNum >= 3) ? 'block' : 'none';
+        }
+
+        function startGlitchEffect() {
+            if (glitchInterval) clearInterval(glitchInterval);
+            glitchInterval = setInterval(() => {
+                const glitch = document.createElement('div');
+                glitch.className = 'scanline-glitch';
+                document.body.appendChild(glitch);
+                setTimeout(() => glitch.remove(), 300);
+            }, 15000 + Math.random() * 20000);
+        }
+
+        function showMenu(menu) {
+            document.getElementById('dashboard').style.display = 'none';
+            document.getElementById(menu + '-menu').style.display = 'flex';
+        }
+
+        function backToMain() {
+            document.getElementById('applications-menu').style.display = 'none';
+            document.getElementById('guidelines-menu').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'flex';
+        }
+    </script>
+</body>
+</html>
