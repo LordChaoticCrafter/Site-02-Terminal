@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Site-02 Secure Terminal</title>
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background: linear-gradient(to bottom, #000000, #001100);
+            color: lime; 
+            font-family: 'Courier New', monospace; 
+            text-shadow: 0 0 12px lime;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,0,0.03) 2px, rgba(0,255,0,0.03) 4px);
+            pointer-events: none;
+            z-index: -1;
+        }
+        .scanline-glitch {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, lime, transparent);
+            opacity: 0;
+            z-index: 10000;
+            animation: glitch-scan 0.3s ease-out forwards;
+            pointer-events: none;
+        }
+        @keyframes glitch-scan {
+            0% { transform: translateY(0); opacity: 0.8; }
+            100% { transform: translateY(100vh); opacity: 0; }
+        }
+        .screen { 
+            height: 100vh; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: flex-start;
+            align-items: center; 
+            display: none;
+            padding: 40px;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        #login-screen { 
+            display: flex; 
+            justify-content: center;
+            align-items: center;
+        }
+        #dashboard, #applications-menu, #guidelines-menu, #o5-guidelines-screen, #mtf-guidelines-screen, #staff-guidelines-screen, #actor-guidelines-screen, #fe-guidelines-screen { overflow-y: auto; }
+        
+        #dashboard::-webkit-scrollbar, 
+        #applications-menu::-webkit-scrollbar, 
+        #guidelines-menu::-webkit-scrollbar,
+        #o5-guidelines-screen::-webkit-scrollbar,
+        #mtf-guidelines-screen::-webkit-scrollbar,
+        #staff-guidelines-screen::-webkit-scrollbar,
+        #actor-guidelines-screen::-webkit-scrollbar,
+        #fe-guidelines-screen::-webkit-scrollbar {
+            display: none;
+        }
+        #dashboard, #applications-menu, #guidelines-menu, #o5-guidelines-screen, #mtf-guidelines-screen, #staff-guidelines-screen, #actor-guidelines-screen, #fe-guidelines-screen {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        input[type="password"] { 
+            background: #000; 
+            border: 3px solid lime; 
+            color: lime; 
+            font-size: 26px; 
+            padding: 15px; 
+            width: 450px; 
+            box-shadow: 0 0 15px rgba(0,255,0,0.5);
+            margin-bottom: 40px;
+        }
+        .status { 
+            font-size: 34px; 
+            margin: 20px; 
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .big-button { 
+            display: block; 
+            width: 85%; 
+            max-width: 1000px; 
+            height: 110px; 
+            margin: 25px auto; 
+            background: #001100; 
+            border: 4px solid lime; 
+            color: lime; 
+            font-size: 40px; 
+            text-decoration: none; 
+            line-height: 110px; 
+            text-align: center;
+            border-radius: 12px;
+            transition: all 0.4s ease;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8), 0 0 25px rgba(0,255,0,0.3);
+            cursor: pointer;
+        }
+        .big-button:hover { 
+            background: #002200; 
+            box-shadow: inset 0 0 30px rgba(0,0,0,0.9), 0 0 50px lime; 
+            transform: scale(1.02);
+        }
+        .big-button:disabled, .redacted-button {
+            opacity: 0.4;
+            cursor: not-allowed;
+            background: #000000;
+            border-color: #440000;
+            color: #880000;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.9), 0 0 15px rgba(255,0,0,0.2);
+            pointer-events: none;
+        }
+        .redacted-button:hover {
+            transform: none;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.9), 0 0 15px rgba(255,0,0,0.2);
+        }
+        h1 { font-size: 56px; margin: 30px 30px 20px 30px; letter-spacing: 2px; }
+        .logo { 
+            width: 150px; 
+            margin-top: 40px;
+            margin-bottom: 10px; 
+            filter: drop-shadow(0 0 20px lime); 
+        }
+        .code-block {
+            background: #000;
+            border: 1px solid lime;
+            padding: 10px;
+            margin: 10px 0;
+            width: 80%;
+            max-width: 800px;
+            font-size: 18px;
+            white-space: pre-wrap;
+            opacity: 0;
+            transition: opacity 1s;
+        }
+        .code-block.visible {
+            opacity: 1;
+        }
+        #codeContainer {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #powerOffOverlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            pointer-events: none;
+            z-index: 9999;
+            display: none;
+            background: #000;
+        }
+        .expander {
+            position: absolute;
+            left: 0;
+            width: 100%;
+            background: linear-gradient(to bottom, #000000, #001100);
+            box-shadow: 0 0 40px rgba(0, 255, 0, 0.6);
+        }
+        .topExpander {
+            top: 50%;
+            height: 0;
+            transform: translateY(-50%);
+            transition: height 1s cubic-bezier(0.77, 0, 0.18, 1);
+        }
+        .bottomExpander {
+            bottom: 50%;
+            height: 0;
+            transform: translateY(50%);
+            transition: height 1s cubic-bezier(0.77, 0, 0.18, 1);
+        }
+        .flash {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: 6px;
+            background: lime;
+            box-shadow: 0 0 60px lime;
+            transform: translateY(-50%);
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .expander::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,0,0.03) 2px, rgba(0,255,0,0.03) 4px);
+            pointer-events: none;
+        }
+
+        .admin-glow {
+            animation: adminPulse 4s infinite;
+        }
+        @keyframes adminPulse {
+            0% { text-shadow: 0 0 20px lime, 0 0 40px lime; }
+            50% { text-shadow: 0 0 40px lime, 0 0 80px lime, 0 0 120px lime; }
+            100% { text-shadow: 0 0 20px lime, 0 0 40px lime; }
+        }
+        .admin-button {
+            border: 6px solid lime !important;
+            box-shadow: inset 0 0 40px rgba(0,0,0,0.8), 0 0 80px lime !important;
+        }
+        .admin-button:hover {
+            box-shadow: inset 0 0 60px rgba(0,0,0,0.9), 0 0 120px lime !important;
+            transform: scale(1.05);
+        }
+
+        .memo-header {
+            font-size: 24px;
+            margin-bottom: 30px;
+            text-align: center;
+            line-height: 1.6;
+        }
+        .memo-body {
+            font-size: 20px;
+            line-height: 1.8;
+            max-width: 900px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Audio Elements -->
+    <audio id="clickSound" src="click.mp3" preload="auto"></audio>
+    <audio id="ambientSound" src="terminalambient.mp3" preload="auto" loop></audio>
+
+    <div id="powerOffOverlay">
+        <div class="expander topExpander"></div>
+        <div class="expander bottomExpander"></div>
+        <div class="flash"></div>
+    </div>
+
+    <div id="login-screen" class="screen">
+        <h1>SITE-02 SECURE ACCESS TERMINAL</h1>
+        <p style="font-size:28px;">Foundation Credentials Required</p>
+        <input type="password" id="password" placeholder="Enter Password">
+        <button id="accessButton" class="big-button">ACCESS</button>
+
+        <a href="https://discord.gg/kXCrCEqg5C" target="_blank" class="big-button" style="margin-top: 60px; width: 70%; max-width: 700px; font-size: 36px;">
+            COMMUNICATIONS
+        </a>
+        <p style="font-size: 20px; opacity: 0.8; margin-top: 20px;">
+            Join the Foundation Discord to obtain clearance credentials
+        </p>
+
+        <p class="status" id="anim"></p>
+    </div>
+
+    <div id="startup-screen" class="screen">
+        <div class="startup-content">
+            <h1>INITIALIZATION SEQUENCE</h1>
+            <p class="status" id="startupStatus"></p>
+            <div id="codeContainer"></div>
+        </div>
+    </div>
+
+    <div id="dashboard" class="screen">
+        <img src="Site-02 Icon.png" alt="Site-02 Icon" class="logo">
+        <h1 id="welcomeTitle">Greetings, O5 Council Member</h1>
+        <p id="clearanceLine" style="font-size:28px; margin-bottom:40px;">O5 Clearance Granted • All Systems Nominal</p>
+        
+        <a id="scpButton" href="https://scp-wiki.wikidot.com/" target="_blank" class="big-button">SCP DATABASE</a>
+        <div id="applicationsButton" onclick="showMenu('applications')" class="big-button">APPLICATIONS</div>
+        <div id="guidelinesButton" onclick="showMenu('guidelines')" class="big-button">GUIDELINES</div>
+        <a href="https://www.roblox.com/games/5041144419/SCP-Roleplay" target="_blank" class="big-button">SITE-02</a>
+        
+        <p style="margin-top: 80px; font-size:24px;">Secure. Contain. Protect.</p>
+    </div>
+
+    <div id="applications-menu" class="screen">
+        <h1>APPLICATIONS</h1>
+        <a href="https://docs.google.com/forms/d/1aI9NqvUkLj6MHCqHU1OzUK_FAtXD-PCPdi_XDryFRt4/edit?ts=69503cd1#responses" target="_blank" class="big-button">Staff Applications</a>
+        <a href="https://forms.gle/actor-applications-placeholder" target="_blank" class="big-button">Actor Applications</a>
+        <a href="https://forms.gle/faction-applications-placeholder" target="_blank" class="big-button">Faction Applications</a>
+        <div onclick="backToMain()" class="big-button">RETURN</div>
+    </div>
+
+    <div id="guidelines-menu" class="screen">
+        <h1>GUIDELINES</h1>
+        <div id="staffBtn" onclick="showMenu('staff-guidelines')" class="big-button">[Staff Guidelines]</div>
+        <div id="actorBtn" onclick="showMenu('actor-guidelines')" class="big-button">[Actor Guidelines]</div>
+        <div id="mtfBtn" onclick="showMenu('mtf-guidelines')" class="big-button">[MTF Guidelines]</div>
+        <div id="feBtn" onclick="showMenu('fe-guidelines')" class="big-button">[FE Guidelines]</div>
+        <div id="o5Btn" onclick="showMenu('o5-guidelines')" class="big-button">[O5 Guidelines]</div>
+        <div onclick="backToMain()" class="big-button">RETURN</div>
+    </div>
+
+    <!-- Staff Guidelines Internal Page -->
+    <div id="staff-guidelines-screen" class="screen">
+        <div onclick="showMenu('guidelines')" class="big-button" style="margin-top:20px; width:300px;">[RETURN]</div>
+        <div class="memo-header">
+            FOUNDATION INTERNAL MEMORANDUM<br>
+            Document ID: Site-02-STAFF-GUID-122925<br>
+            Security Clearance Required: Level 2 (RESTRICTED)<br>
+            Authorized Personnel Only: All Site-02 Staff Members<br>
+            Issued By: O5-1 (via Site-02 Command Authority)<br>
+            Effective Date: 30 December 2025<br><br>
+            <span style="color:red;">WARNING: Unauthorized access, reproduction, or dissemination of this document constitutes a severe breach of Foundation security protocols and will result in disciplinary action, up to and including termination and amnestic administration.</span>
+        </div>
+        <div class="memo-body">
+            <strong>Subject: Staff Conduct, Administrative Protocol, and Disciplinary Guidelines for Site-02 Personnel</strong><br><br>
+            To all staff members assigned to Site-02,<br><br>
+            These guidelines establish the mandatory standards of conduct, administrative responsibilities, and disciplinary procedures for all Foundation personnel at Site-02. As stewards of containment and security, staff are expected to uphold the highest levels of professionalism, impartiality, and dedication.<br><br>
+            Compliance is mandatory. Violations will be reviewed by Upper Administration (UA) and may result in formal reprimand, suspension, demotion, removal from staff duties, or termination. All infractions will incur a strike on your personnel record, with strikes expiring after one month unless appealed to UA.<br><br>
+
+            <strong>1. General Staff Rules</strong><br>
+            1. All staff must adhere strictly to server rules at all times.<br>
+            2. Maintain consistent activity on the server to ensure operational readiness.<br>
+            3. For absences exceeding three days, submit a formal Leave of Absence (LOA) request to a UA member in advance.<br>
+            4. Respond promptly to all staff requests or summons unless prevented by extenuating circumstances.<br>
+            5. Repeated failure to respond to requests under Rule 4 will result in disciplinary measures.<br>
+            6. Staff are strictly prohibited from accessing the server while under the influence of any impairing substance or condition that may compromise judgment.<br>
+            7. Administrative duties take precedence over roleplay. Staff must respond to all !mod requests unless another staff member is actively handling them.<br>
+            8. All administrative sits must be conducted in the designated moderation room.<br>
+            9. Teleportation (TP) is permitted only with a valid operational reason; unauthorized use will result in punishment.<br>
+            10. Bans must be issued using the exact command format: :ban [name] [reason].<br>
+            11. Staff are prohibited from using administrative powers against other staff members, except UA personnel.<br>
+            12. Administrative powers must not be used during roleplay scenarios.<br>
+            13. Staff may host minor events only with prior approval from the Roleplay Manager or Server Host.<br>
+            14. Maintain full composure in all interactions, regardless of provocation.<br>
+            15. Staff must have recording software active and running at all times while on the server to facilitate accurate incident documentation and prevent false reports.<br>
+            16. Act with maturity at all times, including on Discord servers, direct messages, and forums associated with Site-02.<br>
+            17. Witnesses in investigations must be limited to Builders or Staff; unauthorized witnesses are prohibited.<br>
+            18. [Priority] Staff must be absolutely certain a rule violation has occurred before taking action.<br>
+            19. Exercise common sense when rules are ambiguous; higher-ranking staff decisions supersede lower ranks.<br>
+            20. Bias in any form is strictly prohibited.<br>
+            21. Demeaning or derogatory language toward players is forbidden; friendly interactions are encouraged.<br>
+            22. Staff must have immediate access to current rules while online, as they are subject to frequent updates.<br>
+            23. [Priority] Maintain active presence on the server, Discord, and forums.<br>
+            24. Lying to players is prohibited unless explicitly authorized by UA.<br>
+            25. Staff must recite current rules to players upon request, given frequent changes.<br>
+            26. Observing other staff members' sits is forbidden without UA permission.<br>
+            27. Report staff issues or server problems to UA immediately; escalate to Brookline91 if UA cannot resolve.<br>
+            28. All Level 1 and Level 2 offenses require an administrative sit; Level 3 offenses do not.<br>
+            29. Do not remain AFK on Staff on Duty (SOD) for more than three minutes; extensions will result in a warning.<br>
+            30. When issuing bans, include the exact ban reason in the warning message.<br><br>
+
+            <strong>2. Ban and Offense Classification</strong><br>
+            Offenses are categorized by severity level. Punishments are at staff discretion based on repetition and context.<br><br>
+
+            <strong>2.1 Level 1 Offenses (Minimal impact on roleplay and operations):</strong><br>
+            • Random Killing (RK)<br>
+            • Fail Roleplay (FailRP)<br>
+            • Job Abuse (e.g., breaching SCPs as Foundation staff)<br>
+            • Breaking New Life Rule (NLR)<br>
+            • Minor Disrespect<br>
+            • Interrupting Administrative Sits<br>
+            • Chat Spamming<br>
+            • Lying to Staff<br>
+            • Leaving to Avoid Roleplay (LTARP)<br>
+            • Calling !mod without valid reason<br>
+            • Any other minor infractions<br><br>
+            Punishment: Verbal/written warning, kick, or 2-hour ban (escalates with repetition/severity).<br><br>
+
+            <strong>2.2 Level 2 Offenses (Moderate impact, semi-halting roleplay and operations):</strong><br>
+            • Mass Random Killing (3+ kills)<br>
+            • Repetitive FailRP<br>
+            • Repetitive NLR Violations<br>
+            • Racism or Minor Sexism<br>
+            • Multiple Level 1 Offenses<br>
+            • Major Disrespect<br>
+            • Disobeying Staff Directives<br>
+            • Minor Exploits (e.g., map glitching)<br>
+            • Threatening Players<br>
+            • Purposeful False Accusations<br>
+            • Leaving to Avoid Punishment (LTAP; adds 2 days to punishment)<br><br>
+            Punishment: 1-day to 1-week ban, documented with warning. Repeat offenders: 1-week to 3-week ban.<br><br>
+
+            <strong>2.3 Level 3 Offenses (Major impact, threatening server integrity):</strong><br>
+            • DDoS Threats (Permanent)<br>
+            • Major Exploits<br>
+            • Hacking<br>
+            • Multiple Level 2 Offenses<br>
+            • Doxing (as determined by UA)<br><br>
+            Punishment: 3-week to permanent ban.<br><br>
+
+            <strong>2.4 Level 4 Offenses (Critical breaches handled exclusively by UA):</strong><br>
+            • Multiple Level 3 Offenses<br>
+            • Mass Harassment<br>
+            • Actual DDoS<br>
+            • UA Abuse of Power<br>
+            • Extortion<br><br>
+            Punishment: Determined by Upper Administration.<br><br>
+
+            <strong>3. Strike System for Staff Misconduct</strong><br>
+            Strikes track staff infractions and determine ongoing eligibility.<br><br>
+            • Strike 1: Warning for large mistakes.<br>
+            • Strike 2: Demotion or equivalent punishment.<br>
+            • Strike 3: Removal from the staff team.<br><br>
+            Strikes expire after one month or upon successful appeal to UA.<br><br>
+
+            These guidelines are effective immediately and supersede all prior protocols. Questions or appeals must be directed to UA.<br><br>
+            Secure. Contain. Protect.<br><br>
+            Signed,<br>
+            O5-1<br>
+            Overseer Council Head<br>
+            Site-02 Command Authority
+        </div>
+    </div>
+    <!-- Actor Guidelines Internal Page -->
+    <div id="actor-guidelines-screen" class="screen">
+        <div onclick="showMenu('guidelines')" class="big-button" style="margin-top:20px; width:300px;">[RETURN]</div>
+        <div class="memo-header">
+            FOUNDATION INTERNAL MEMORANDUM<br>
+            Document ID: Site-02-SCP-ACTOR-GUID-122925<br>
+            Security Clearance Required: Level 3 (CONFIDENTIAL/RESTRICTED)<br>
+            Authorized Personnel Only: All SCP Roleplay Actors, Containment Teams, and Supervisory Staff<br>
+            Issued By: O5-1 (via Site-02 Command Authority)<br>
+            Effective Date: 30 December 2025<br><br>
+            <span style="color:red;">WARNING: Unauthorized access, reproduction, or dissemination of this document constitutes a severe breach of Foundation security protocols and will result in disciplinary action, up to and including termination, amnestic administration, or roleplay privilege revocation.</span>
+        </div>
+        <div class="memo-body">
+            <strong>Subject: Operational and Roleplay Guidelines for SCP Entity Actors at Site-02</strong><br><br>
+            To all personnel authorized to roleplay SCP anomalous entities,<br><br>
+            The following guidelines establish the mandatory standards for portraying SCP entities within Site-02. These rules ensure consistent, fair, and lore-appropriate roleplay while maintaining operational security and containment integrity. They apply to all SCP actors, regardless of specific entity designation.<br><br>
+            Violations will result in administrative review, warnings, temporary role restrictions, or permanent removal from SCP roleplay privileges.<br><br>
+
+            <strong>1. Weaponization of Anomalous Entities</strong><br>
+            1.1 Foundation personnel are strictly prohibited from weaponizing any SCP entity.<br>
+            1.2 Chaos Insurgency personnel may weaponize designated SCPs only as explicitly listed in their respective entity guidelines. Very limited exceptions may be granted on a case-by-case basis by Site Command.<br><br>
+
+            <strong>2. SCP Presence in D-Block (CDC)</strong><br>
+            2.1 Passive and approved item-based SCPs are permitted within D-Block.<br>
+            2.2 Each SCP entity's individual guidelines specify whether entry into D-Block is authorized.<br>
+            2.3 SCPs requiring D-Block access must receive explicit authorization from Foundation personnel; self-authorization is prohibited.<br><br>
+
+            <strong>3. Item-Based Anomalies</strong><br>
+            3.1 Actors portraying item-based SCPs may carry only one (1) anomalous item at any time.<br><br>
+
+            <strong>4. Detainment of SCP Entities</strong><br>
+            4.1 SCP entities may not be detained unless explicitly required by their designated containment procedures.<br><br>
+
+            <strong>5. Detain-Based Dragging</strong><br>
+            5.1 SCP entities are prohibited from dragging players while under detain mechanics. Exceptions will be clearly listed in individual entity guidelines.<br><br>
+
+            <strong>6. Silent Breaches</strong><br>
+            6.1 Silent breaches may only be initiated by other SCP entities or Chaos Insurgency Scouts.<br><br>
+
+            <strong>7. Communication Privileges</strong><br>
+            7.1 Humanoid SCPs capable of speech may utilize in-game communication devices if provided.<br>
+            7.2 Use of external Discord or out-of-character communication channels to relay in-game information is strictly prohibited (SCP-953 is explicitly excepted from this restriction).<br><br>
+
+            <strong>8. Improper Containment Procedures</strong><br>
+            8.1 Deliberate or negligent improper containment (e.g., leaving containment chambers open or failing to activate required mechanisms such as the Femur Breaker for SCP-106) permits the affected SCP to re-breach after a 15-second grace period.<br><br>
+
+            <strong>9. Antagonization During Recontainment</strong><br>
+            9.1 SCP entities that are intentionally antagonized during active recontainment may engage the provoking individual in self-defense before voluntarily returning to containment.<br><br>
+
+            <strong>10. Access to Player Spawn Areas</strong><br>
+            10.1 SCP entities are prohibited from entering designated player bunk or spawn areas.<br>
+            10.2 Players may not exploit this restriction by fleeing to spawn areas to evade pursuing SCP entities.<br><br>
+
+            <strong>11. Breach Prerequisites</strong><br>
+            11.1 SCP entities may not initiate a breach unless at least five (5) Foundation personnel are actively online within the facility.<br><br>
+
+            <strong>12. Interaction with Chaos Insurgency Base and Metagaming</strong><br>
+            12.1 SCP entities are prohibited from entering or approaching the Chaos Insurgency base under any circumstances.<br>
+            12.2 Metagaming—defined as the use of out-of-character knowledge to gain an in-character advantage—is forbidden. This includes, but is not limited to: spawncamping, retaining memory across deaths (violating New Life Rule), or locating hidden bases without logical in-character justification derived from lore, prior roleplay events, or entity-specific abilities.<br><br>
+
+            <strong>13. Chain Breaching by SCP Entities</strong><br>
+            13.1 An SCP entity breached by another SCP may not subsequently breach additional entities.<br>
+            13.2 Explicit exception: SCP-035, which requires SCP-049 to initiate its breach.<br><br>
+
+            <strong>14. Teaming with Class-D Personnel</strong><br>
+            14.1 Certain SCP entities are prohibited from cooperating with Class-D personnel. Allowed collaborations will be clearly specified in the respective entity's individual guidelines.<br><br>
+
+            <strong>15. Weapon Restrictions</strong><br>
+            15.1 Certain SCP entities are prohibited from possessing or utilizing specific weaponry (e.g., FrostTech devices, SPAS-12).<br>
+            15.2 Exceptions are granted only to entities with explicit requirements, such as SCP-682 or those necessitating mesh-related containment overrides.<br><br>
+
+            Adherence to these guidelines is essential for maintaining immersion, fairness, and the integrity of Site-02 operations.<br><br>
+            Secure. Contain. Protect.<br><br>
+            Signed,<br>
+            O5-1<br>
+            Overseer Council Head<br>
+            Site-02 Command Authority
+        </div>
+    </div>
+
+    <!-- MTF Guidelines Internal Page -->
+    <div id="mtf-guidelines-screen" class="screen">
+        <div onclick="showMenu('guidelines')" class="big-button" style="margin-top:20px; width:300px;">[RETURN]</div>
+        <div class="memo-header">
+            FOUNDATION INTERNAL MEMORANDUM<br>
+            Document ID: Site-02-MTF-L3-GUID-122925<br>
+            Security Clearance Required: Level 3 (CONFIDENTIAL/RESTRICTED)<br>
+            Authorized Personnel Only: Mobile Task Force Personnel (All Units)<br>
+            Issued By: O5-1 (via Site-02 Command Authority)<br>
+            Effective Date: 30 December 2025<br><br>
+            <span style="color:red;">WARNING: Unauthorized access, reproduction, or dissemination of this document constitutes a severe breach of Foundation security protocols and will result in disciplinary action, up to and including termination and amnestic administration.</span>
+        </div>
+        <div class="memo-body">
+            <strong>Subject: Operational Conduct and Discipline Guidelines for Level 3 Clearance Mobile Task Force Personnel at Site-02</strong><br><br>
+            To all Mobile Task Force operatives holding Level 3 clearance,<br><br>
+            The following guidelines outline the mandatory standards of operational discipline, tactical protocol, and professional conduct expected of all Mobile Task Force personnel assigned to Site-02. These rules apply universally to all units (including Nu-7, Epsilon-11, Tau-5, and attached detachments).<br><br>
+            Compliance is mandatory. Violations will be reviewed by Site Command and may result in formal reprimand, suspension from active duty, demotion, or permanent removal from Mobile Task Force assignment.<br><br>
+
+            <strong>1. Firearms Discipline</strong><br>
+            1.1 Random or unauthorized discharge of weapons is strictly prohibited. Firearms may only be discharged in response to confirmed hostile threats, active containment breaches, or under direct orders from commanding personnel.<br>
+            1.2 Reckless firing, "spray and pray" tactics, or discharging weapons in non-combat areas will result in immediate disciplinary action.<br><br>
+
+            <strong>2. Tactical Movement and Team Integrity</strong><br>
+            2.1 MTF operatives must operate in squads of at least two personnel at all times during active patrols, responses, or containment operations within the facility.<br>
+            2.2 Lone-wolf actions are forbidden except in extreme circumstances where separation is unavoidable. Maintain visual or radio contact with squad members.<br>
+            2.3 Coordinate movements and maintain proper spacing and formation to maximize operational effectiveness and minimize risk.<br><br>
+
+            <strong>3. Communication and Professional Demeanor</strong><br>
+            3.1 All communications, both in voice and text channels, must remain respectful, official, and mission-focused while on duty.<br>
+            3.2 Use clear, professional language. Avoid slang, memes, excessive abbreviations, or casual tone during operations.<br>
+            3.3 Refrain from "goofing around," making jokes at inappropriate times, using emotes, or engaging in non-professional behavior that undermines unit discipline or site security.<br><br>
+
+            <strong>4. Chain of Command and Obedience</strong><br>
+            4.1 Obey all lawful orders from higher-ranking personnel (including MTF officers, Level 4+ staff, and O5 Council members) promptly and without argument.<br>
+            4.2 Respect the authority of Site Command, Scientific Department leads during joint operations, and Security Department personnel in non-breach scenarios.<br>
+            4.3 Disputes or concerns regarding orders are to be raised through proper channels after the conclusion of active operations—never during a live incident.<br><br>
+
+            <strong>5. General Operational Conduct</strong><br>
+            5.1 Maintain constant situational awareness and readiness.<br>
+            5.2 Do not interfere with ongoing Scientific Department testing or experiments unless explicitly ordered or in direct response to a containment breach.<br>
+            5.3 Treat all Foundation personnel (including D-Class under supervision) with professionalism. Harassment, intimidation, or unnecessary aggression is prohibited.<br>
+            5.4 Post-incident, all operatives are required to submit accurate and timely reports on engagements and actions taken.<br><br>
+
+            These protocols are designed to ensure the highest standards of discipline, coordination, and effectiveness in protecting Foundation assets and containing anomalous threats.<br><br>
+            Secure. Contain. Protect.<br><br>
+            Signed,<br>
+            O5-1<br>
+            Overseer Council Head<br>
+            Site-02 Command Authority
+        </div>
+    </div>
+
+    <!-- FE Guidelines Internal Page -->
+    <div id="fe-guidelines-screen" class="screen">
+        <div onclick="showMenu('guidelines')" class="big-button" style="margin-top:20px; width:300px;">[RETURN]</div>
+        <div class="memo-header">
+            FOUNDATION INTERNAL MEMORANDUM<br>
+            Document ID: Site-02-FE-SOP-122925<br>
+            Security Clearance Required: Level 3 (CONFIDENTIAL/RESTRICTED)<br>
+            Authorized Personnel Only: Foundation Enforcement Division Personnel, Site Command, Ethics Committee, and O5 Council<br>
+            Issued By: O5-1 (via Site-02 Command Authority)<br>
+            Effective Date: 30 December 2025<br><br>
+            <span style="color:red;">WARNING: Unauthorized access, reproduction, or dissemination of this document constitutes a severe breach of Foundation security protocols and will result in disciplinary action, up to and including termination, demotion, and amnestic administration.</span>
+        </div>
+        <div class="memo-body">
+            <strong>Subject: Standard Operating Procedures for Foundation Enforcement Division at Site-02</strong><br><br>
+            To all members of the Foundation Enforcement Division,<br><br>
+            Foundation Enforcement serves as the primary internal security and penal enforcement arm of Site-02. Our mandate is to maintain order, enforce the Site Penal Code through lawful arrests, conduct investigations into corruption, and ensure the safe and efficient operation of the facility.<br><br>
+
+            <strong>1. General Duties</strong><br>
+            1. Enforce the Site-02 Penal Code through the execution of lawful arrests.<br>
+            2. Conduct regular patrols of Light Containment Zone (LCZ) and Heavy Containment Zone (HCZ).<br>
+            3. Establish and maintain checkpoints throughout the facility as required.<br>
+            4. Provide temporary guard coverage for Class-D Cell Block (CDC) when Security Department personnel are unavailable.<br>
+            5. Escort and protect members of Site Command (SiC) or Ethics Committee (EC) upon request.<br>
+            6. Assist Scientific Department personnel during testing and enforce the Foundation Code of Ethics when necessary.<br>
+            7. Provide secondary support for SCP recontainment or maintenance operations (lowest priority).<br><br>
+
+            <strong>2. Rules and Guidelines</strong><br>
+            1. Obey all lawful orders from superior officers within the chain of command. Concerns regarding orders must be raised privately to a Commissioned Officer or higher.<br>
+            2. During Code Red or higher alert statuses, suspend all arrest activities. Prioritize SCP recontainment and CDC security. Crimes witnessed during elevated codes must be documented via warrant for post-incident resolution.<br>
+            3. Maintain consistent activity. Initial inactivity will result in a formal warning; continued inactivity will lead to removal from the division.<br>
+            4. Conduct all operations in a manner that upholds the professional reputation of Foundation Enforcement. Actions that damage the division's integrity will not be tolerated.<br><br>
+
+            <strong>3. Strike System</strong><br>
+            • 1 Strike: Formal Warning<br>
+            • 3 Strikes: Demotion<br>
+            • 5 Strikes: Removal from Division<br>
+            • 6+ Strikes: Blacklisting (duration determined by Command)<br><br>
+            Strikes may be issued for:<br>
+            1. Disobeying direct orders from Non-Commissioned Officers or higher while adhering to chain of command.<br>
+            2. Conducting false or unlawful arrests.<br>
+            3. Abusing disguise kits or other specialized equipment.<br>
+            4. Being arrested as an FE member (subject to heightened scrutiny).<br>
+            5. Actions that bring disrepute to Foundation Enforcement.<br><br>
+
+            <strong>4. Important Operational Reminders</strong><br>
+            • Do not detain arrestees longer than necessary.<br>
+            • All arrests must be logged and published in designated Foundation Enforcement channels.<br>
+            • Penal Code jail times represent maximum sentences; reductions are permitted based on circumstances and severity.<br>
+            • Maximum detention duration per arrest: 30 minutes.<br>
+            • Hostage negotiation ransom guidelines:<br>
+              • 5,000 credits: Non-Commissioned Officer<br>
+              • 10,000 credits: High Command<br>
+              • 15,000 credits: Site Command / Level 5 / Ethics Committee<br>
+              • 20,000 credits: Site Director / Deputy Director<br>
+              • 25,000 credits: O5 Council Member<br><br>
+
+            <strong>5. Arrest Procedures</strong><br>
+            1. Remain calm and respectful toward the suspect at all times. Aggression may escalate the situation unnecessarily.<br>
+            2. Utilize handcuffs as primary tool for swift and efficient detainment.<br>
+            3. Exercise caution—non-compliant suspects or third-party interference may pose threats. Lethal force is authorized only when life is in imminent danger.<br>
+            4. Apply reasonable and proportionate charges and sentencing based on crime severity.<br>
+            5. Log and publish all arrests in official channels for supervisory review and coordination.<br><br>
+
+            <strong>6. Patrol Routes</strong><br>
+            • Class-D Cell Block (CDC): Provide coverage upon Security request; operate with at least one additional FE member.<br>
+            • Light Containment Zone (LCZ): Patrol the main loop, including R-Wing, all personnel wing containment chambers, SCP-662, SCP-049, SCP-173, Armory security check, and O-Wing status verification.<br>
+            • Heavy Containment Zone (HCZ): Patrol Euclid Wing to endpoint, return via Arena-2 into Keter Zone, check all chambers to SCP-106, then return via Arena-1/3.<br>
+            • Entrance Zone (EZ): Patrol only under direct Commissioned Officer supervision. Unauthorized presence may result in trespassing charges.<br><br>
+
+            <strong>7. Ranking Structure</strong><br>
+            High Command<br>
+            • Grand Marshal: Division Leader (full promotion/demotion authority)<br>
+            • Field Marshal: Deputy Leader (promotion/demotion authority up to Captain)<br><br>
+            Commissioned Officers<br>
+            • Marshal: Third-in-command; oversees all operations and personnel<br>
+            • Captain: Supervises NCOs (Enforcement Captain, Intelligence Captain; promotion authority up to Master Sergeant)<br><br>
+            Non-Commissioned Officers<br>
+            • Master Sergeant: Senior NCO (promotion/demotion up to Corporal)<br>
+            • Staff Sergeant: (promotion/demotion up to Senior Officer)<br>
+            • Sergeant: Entry-level NCO; conducts simulations and tryouts (promotion/demotion up to Officer)<br><br>
+            Enlisted<br>
+            • Corporal: Leadership candidate; conducts tryouts and limited strikes<br>
+            • Senior Officer: Second specialization; evaluated for promotion potential<br>
+            • Officer First Class: Increased operational freedom<br>
+            • Officer: First specialization<br>
+            • Auxiliary Officer: Entry-level; expected to demonstrate maturity and respect<br><br>
+
+            <strong>8. Specialized Units</strong><br>
+            • Foundation Enforcement Special Weapons and Tactics (SWAT): Elite operators specializing in hostage rescue/negotiation, high-command protection (when Alpha-1/Omega-1 unavailable), and execution of warrants/raids. Selection via tryout.<br>
+            • Intelligence Agency: Investigative branch responsible for corruption probes, evidence gathering, and support for prosecutions. Selection via application reviewed by IA Lead, Senior Marshal, or Grand Marshal.<br><br>
+
+            Secure. Contain. Protect.<br><br>
+            Signed,<br>
+            O5-1<br>
+            Overseer Council Head<br>
+            Site-02 Command Authority
+        </div>
+    </div>
+
+    <!-- O5 Guidelines Internal Page -->
+    <div id="o5-guidelines-screen" class="screen">
+        <div onclick="showMenu('guidelines')" class="big-button" style="margin-top:20px; width:300px;">[RETURN]</div>
+        <div class="memo-header">
+            FOUNDATION INTERNAL MEMORANDUM<br>
+            Document ID: Site-02-O5-GUID-REV-122625<br>
+            Security Clearance Required: Level 5 (THAUMIEL)<br>
+            Authorized Personnel Only: O5 Council Members<br>
+            Issued By: O5-1<br>
+            Revision Date: 30 December 2025<br><br>
+            <span style="color:red;">WARNING: Unauthorized access or dissemination of this document will result in immediate apprehension, interrogation, and termination.</span>
+        </div>
+        <div class="memo-body">
+            <strong>Subject: Uniform Guidelines for O5 Council Members at Site-02</strong><br><br>
+            To all members of the O5 Council,<br><br>
+            These guidelines establish the mandatory standards of conduct, appearance, and operational protocol for all O5 Council personnel at Site-02. Compliance is non-negotiable. These rules form a uniform baseline: additions may be proposed, but no existing provision may be removed or altered without explicit approval from O5-1.<br><br>
+            Failure to adhere to these guidelines will result in formal reprimand, disciplinary action, or removal from the Council, commensurate with the severity of the infraction.<br><br>
+
+            <strong>1. Appearance and Avatar Customization</strong><br>
+            O5 Council members are permitted to create individualized avatars ("morphs"), provided they remain professional, appropriate, and consistent with Foundation standards. Avatars must not approach or incorporate any content deemed NSFW, inappropriate, or frivolous ("goofy"). Violations will result in immediate removal from the O5 Council.<br><br>
+
+            <strong>2. Display and Rank Designation</strong><br>
+            All O5 Council members must display their rank tag in the following exact format:<br>
+            Official O5 Command | O5-# | Level 5 (THAUMIEL)<br>
+            Example command: :rtag me Official O5 Command | O5-1 | Level 5 (THAUMIEL)<br><br>
+
+            <strong>3. Authorized Functions and Commands</strong><br>
+            O5 personnel are granted the following administrative functions:<br>
+            • :maxhealth me 320<br>
+            • :heal me<br>
+            • :canrk me true<br><br>
+            Note: The :canrk function enables friendly fire capabilities and must not be abused. It is to be used solely in exigent circumstances requiring direct intervention. O5 personnel are additionally authorized to equip and employ Personal Defense Weapons (PDWs).<br><br>
+
+            <strong>4. General Conduct Rules</strong><br>
+            While on duty as O5 Council members:<br>
+            1. Maintain maturity and professionalism in all interactions.<br>
+            2. Adhere strictly to all standard Site-02 facility rules and protocols.<br>
+            3. Do not equip or utilize rifles or prohibited secondary weapons (e.g., SPAS-12, Minigun, Hellion, or equivalent).<br>
+            4. [Reserved for future amendment.]<br>
+            5. Ensure constant escort by at least two Alpha-1 operatives while within the main facility.<br>
+            6. [Reserved for future amendment.]<br>
+            7. Employ proper grammar in all communications; correct errors promptly upon identification.<br>
+            8. Refrain from emotes, dancing, or any behavior indicative of immaturity.<br>
+            9. Demonstrate respect toward all Foundation personnel, both on- and off-duty.<br>
+            10. Exercise common sense in all decisions and actions.<br><br>
+
+            <strong>5. Duties and Authorities</strong><br>
+            As members of the O5 Council:<br>
+            1. You possess command authority over all Foundation personnel, with the exception of Mobile Task Force Omega-1 and Bravo-12.<br>
+            2. You may assign a personal Factotum for assistance; however, this assistant may not assume or perform your primary duties.<br>
+            3. While escorted by Alpha-1, you may designate preferred formations. Alpha-1 operatives retain the right to override formations that pose undue risk without penalty.<br>
+            4. You are authorized to direct Scientific Department personnel to conduct testing on any SCP object, irrespective of the researcher's standard clearance level.<br>
+            5. [Reserved for future amendment.]<br>
+            6. [Reserved for future amendment.]<br>
+            7. You may authorize the termination of site personnel when justified by operational necessity. Abuse of this authority will result in severe disciplinary measures and potential removal from the Council.<br><br>
+
+            These guidelines supersede all prior versions. Proposed additions or clarifications must be submitted directly to O5-1 for review.<br><br>
+            Secure. Contain. Protect.<br><br>
+            Signed,<br>
+            O5-1<br>
+            Overseer Council Head<br>
+            Site-02
+        </div>
+    </div>
+
+    <script>
+        // Audio objects
+        const clickSound = document.getElementById('clickSound');
+        const ambientSound = document.getElementById('ambientSound');
+
+        // Play ambient loop when page loads
+        window.addEventListener('load', () => {
+            ambientSound.volume = 0.3;
+            ambientSound.play().catch(() => {
+                document.body.addEventListener('click', () => ambientSound.play(), { once: true });
+            });
+        });
+
+        // Play click sound on every button
+        function playClick() {
+            clickSound.currentTime = 0;
+            clickSound.play();
+        }
+
+        // Add click sound to all big-buttons and regular buttons
+        document.querySelectorAll('.big-button, button').forEach(el => {
+            el.addEventListener('click', playClick);
+        });
+
+        const accessButton = document.getElementById('accessButton');
+
+        function checkPassword() {
+            accessButton.disabled = true;
+            accessButton.style.opacity = '0.5';
+            accessButton.style.cursor = 'not-allowed';
+
+            const input = document.getElementById('password').value.trim();
+            const anim = document.getElementById('anim');
+
+            currentLevel = null;
+
+            if (input === passwords.admin) {
+                currentLevel = 'admin';
+            } else if (input === passwords.l1) currentLevel = 'l1';
+            else if (input === passwords.l2) currentLevel = 'l2';
+            else if (input === passwords.l3) currentLevel = 'l3';
+            else if (input === passwords.l4) currentLevel = 'l4';
+            else if (Object.keys(passwords).some(k => k.startsWith('o5_') && passwords[k] === input)) {
+                currentLevel = Object.keys(passwords).find(k => passwords[k] === input);
+            }
+
+            if (!currentLevel) {
+                anim.textContent = "INTRUDER DETECTED";
+                anim.style.color = 'red';
+                anim.style.fontSize = '48px';
+                anim.style.textShadow = '0 0 30px red';
+
+                document.body.style.background = 'red';
+                setTimeout(() => document.body.style.background = 'linear-gradient(to bottom, #000000, #001100)', 100);
+                setTimeout(() => document.body.style.background = 'red', 200);
+                setTimeout(() => document.body.style.background = 'linear-gradient(to bottom, #000000, #001100)', 300);
+                setTimeout(() => document.body.style.background = 'red', 400);
+                setTimeout(() => document.body.style.background = 'linear-gradient(to bottom, #000000, #001100)', 500);
+
+                setTimeout(() => anim.textContent = "ALERTING O5 COUNCIL...", 1000);
+                setTimeout(() => anim.textContent = "DEPLOYING ALPHA-1", 2000);
+                setTimeout(() => anim.textContent = "TERMINAL LOCKOUT INITIATED", 3000);
+
+                setTimeout(() => {
+                    triggerPowerOffEffect(() => {
+                        anim.textContent = "CONNECTION TERMINATED";
+                        anim.style.color = 'red';
+                        setTimeout(() => {
+                            window.close();
+                            window.location.href = 'about:blank';
+                        }, 1500);
+                    });
+                }, 4000);
+
+                return;
+            }
+
+            anim.textContent = "Scanning Biometrics...";
+            setTimeout(() => anim.textContent = "Verifying Credentials...", 1000);
+            setTimeout(() => anim.textContent = "Access Granted", 2000);
+
+            setTimeout(() => {
+                document.getElementById('login-screen').style.display = 'none';
+                triggerPowerOffEffect(() => startStartupSequence());
+            }, 3000);
+        }
+
+        accessButton.addEventListener('click', checkPassword);
+
+        const passwords = {
+            l1: "L1-582392",
+            l2: "L2-654023",
+            l3: "L3-102654",
+            l4: "L4-328575",
+            o5_1: "O51-427",
+            o5_2: "O52-813",
+            o5_3: "O53-059",
+            o5_4: "O54-692",
+            o5_5: "O55-374",
+            o5_6: "O56-981",
+            o5_7: "O57-205",
+            o5_8: "O58-646",
+            o5_9: "O59-138",
+            o5_10: "O510-770",
+            o5_11: "O511-592",
+            o5_12: "O512-364",
+            o5_13: "O513-919",
+            admin: "brook"
+        };
+
+        const o5Titles = {
+            o5_1: 'The Founder',
+            o5_2: 'The Gardener',
+            o5_3: 'The Kid',
+            o5_4: 'The Ambassador',
+            o5_5: 'The Blackbird',
+            o5_6: 'The Cowboy',
+            o5_7: 'The Cardinal',
+            o5_8: 'The Newbie',
+            o5_9: 'The Outsider',
+            o5_10: 'The Archivist',
+            o5_11: 'The Mailman',
+            o5_12: 'The Accountant',
+            o5_13: 'The Tiebreaker'
+        };
+
+        let currentLevel = null;
+        let glitchInterval;
+
+        const levelMessages = {
+            admin: [
+                "Initializing SCiPNET Supreme...",
+                "Booting Ultimate Kernel...",
+                "Verifying Administrator Authority...",
+                "Disabling All Memetic Kill Agents...",
+                "Neutralizing All Cognitohazards...",
+                "Granting Absolute Access...",
+                "Sequence Complete - All Systems Bow"
+            ],
+            o5: [
+                "Initializing SCiPNET OS...",
+                "Booting Secure Kernel...",
+                "Verifying O5 Clearance...",
+                "Disabling Memetic Kill Agents...",
+                "Neutralizing Cognitohazards...",
+                "Granting Level 5 Access...",
+                "Sequence Complete - Access Granted"
+            ],
+            l4: [
+                "Initializing SCiPNET OS...",
+                "Booting Secure Kernel...",
+                "Verifying Level 4 Clearance...",
+                "Loading Restricted Database...",
+                "Applying Security Protocols...",
+                "Granting Level 4 Access...",
+                "Sequence Complete - Access Granted"
+            ],
+            l3: [
+                "Initializing SCiPNET OS...",
+                "Booting Secure Kernel...",
+                "Verifying Level 3 Clearance...",
+                "Loading Restricted Database...",
+                "Applying Security Protocols...",
+                "Granting Level 3 Access...",
+                "Sequence Complete - Access Granted"
+            ],
+            l2: [
+                "Initializing SCiPNET OS...",
+                "Booting Standard Kernel...",
+                "Verifying Level 2 Clearance...",
+                "Loading Public Database...",
+                "Granting Level 2 Access...",
+                "Sequence Complete - Access Granted"
+            ],
+            l1: [
+                "Initializing SCiPNET OS...",
+                "Booting Standard Kernel...",
+                "Verifying Level 1 Clearance...",
+                "Loading Public Database...",
+                "Granting Level 1 Access...",
+                "Sequence Complete - Access Granted"
+            ]
+        };
+
+        const levelCodeSnippets = {
+            admin: [
+                "exec supreme_init()",
+                "load_ultimate_kernel()",
+                "assert_authority('Administrator')",
+                "purge_all_agents()",
+                "neutralize_global_hazards()",
+                "grant_omnipotence()",
+                "complete_dominion()"
+            ],
+            o5: [
+                "def init_scipnet():\n    load_kernel()\n    return 'OS Initialized'",
+                "boot_kernel = lambda: 'Kernel Booted'",
+                "verify_clearance(user='O5')  # Clearance Verified",
+                "disable_agents(memetic=True)  # Agents Disabled",
+                "neutralize_hazards(cognito=True)  # Hazards Neutralized",
+                "grant_access(level=5)  # Access Granted",
+                "complete_sequence()  # Sequence Complete"
+            ],
+            default: [
+                "init_scipnet()",
+                "boot_kernel()",
+                "verify_clearance()",
+                "load_database()",
+                "apply_protocols()",
+                "grant_access()",
+                "complete_sequence()"
+            ]
+        };
+
+        function triggerPowerOffEffect(callback) {
+            const top = document.querySelector('.topExpander');
+            const bottom = document.querySelector('.bottomExpander');
+            const flash = document.querySelector('.flash');
+            top.style.height = '0';
+            bottom.style.height = '0';
+            flash.style.opacity = '0';
+
+            const overlay = document.getElementById('powerOffOverlay');
+            overlay.style.display = 'block';
+
+            setTimeout(() => {
+                top.style.height = '100vh';
+                bottom.style.height = '100vh';
+
+                flash.style.opacity = '0.8';
+                setTimeout(() => flash.style.opacity = '0', 300);
+
+                setTimeout(() => {
+                    overlay.style.display = 'none';
+                    if (callback) callback();
+                }, 1100);
+            }, 100);
+        }
+
+        function typeWriter(text, element, callback) {
+            element.textContent = '';
+            let i = 0;
+            const timer = setInterval(() => {
+                element.textContent += text[i];
+                i++;
+                if (i >= text.length) {
+                    clearInterval(timer);
+                    if (callback) callback();
+                }
+            }, 60);
+        }
+
+        function showCodeSnippet(index) {
+            const container = document.getElementById('codeContainer');
+            const codeEl = document.createElement('pre');
+            codeEl.className = 'code-block';
+            let snippets;
+            if (currentLevel === 'admin') snippets = levelCodeSnippets.admin;
+            else if (currentLevel && currentLevel.startsWith('o5_')) snippets = levelCodeSnippets.o5;
+            else snippets = levelCodeSnippets.default;
+            codeEl.textContent = snippets[index] || snippets[snippets.length - 1];
+            container.appendChild(codeEl);
+            setTimeout(() => codeEl.classList.add('visible'), 100);
+        }
+
+        function startStartupSequence() {
+            document.getElementById('startup-screen').style.display = 'flex';
+            
+            const messages = currentLevel === 'admin' ? levelMessages.admin : levelMessages[currentLevel.startsWith('o5_') ? 'o5' : currentLevel] || levelMessages.l3;
+            
+            let index = 0;
+            const statusEl = document.getElementById('startupStatus');
+            
+            const nextMessage = () => {
+                if (index < messages.length) {
+                    typeWriter(messages[index], statusEl, () => {
+                        showCodeSnippet(index);
+                    });
+                    index++;
+                    setTimeout(nextMessage, 2800);
+                }
+            };
+            nextMessage();
+            
+            setTimeout(() => {
+                document.getElementById('startup-screen').style.display = 'none';
+                triggerPowerOffEffect(() => {
+                    setupDashboardForLevel();
+                    document.getElementById('dashboard').style.display = 'flex';
+                    startGlitchEffect();
+                });
+            }, 20000);
+        }
+
+        function setupDashboardForLevel() {
+            const welcomeTitle = document.getElementById('welcomeTitle');
+            const clearanceLine = document.getElementById('clearanceLine');
+            const scpButton = document.getElementById('scpButton');
+            const applicationsButton = document.getElementById('applicationsButton');
+            const guidelinesButton = document.getElementById('guidelinesButton');
+
+            welcomeTitle.classList.remove('admin-glow');
+            document.querySelectorAll('.big-button').forEach(btn => {
+                btn.classList.remove('admin-button');
+            });
+
+            if (currentLevel === 'admin') {
+                welcomeTitle.textContent = 'Greetings, The Administrator';
+                clearanceLine.textContent = 'Absolute Authority Granted • The Foundation Awaits Your Command';
+                welcomeTitle.classList.add('admin-glow');
+                document.querySelectorAll('.big-button').forEach(btn => btn.classList.add('admin-button'));
+            } else if (currentLevel && currentLevel.startsWith('o5_')) {
+                const o5Num = currentLevel.split('_')[1];
+                const title = o5Titles[currentLevel] || 'Council Member';
+                welcomeTitle.textContent = `Greetings, O5-${o5Num} "${title}"`;
+                clearanceLine.textContent = 'O5 Clearance Granted • All Systems Nominal';
+            } else {
+                const levelNum = currentLevel ? parseInt(currentLevel.charAt(1)) : 3;
+                welcomeTitle.textContent = `Welcome, Level ${levelNum} Personnel`;
+                clearanceLine.textContent = `Level ${levelNum} Clearance Granted • Systems Nominal`;
+            }
+
+            const isO5 = currentLevel && currentLevel.startsWith('o5_');
+            const isAdmin = currentLevel === 'admin';
+            const levelNum = currentLevel && !isO5 && !isAdmin ? parseInt(currentLevel.charAt(1)) : 0;
+
+            // Always show all buttons
+            // SCP DATABASE: L3+
+            if (isO5 || isAdmin || levelNum >= 3) {
+                scpButton.classList.remove('redacted-button');
+                scpButton.textContent = 'SCP DATABASE';
+                scpButton.disabled = false;
+            } else {
+                scpButton.classList.add('redacted-button');
+                scpButton.textContent = '[REDACTED]';
+                scpButton.disabled = true;
+            }
+
+            // GUIDELINES: L2+
+            if (isO5 || isAdmin || levelNum >= 2) {
+                guidelinesButton.classList.remove('redacted-button');
+                guidelinesButton.textContent = 'GUIDELINES';
+                guidelinesButton.disabled = false;
+            } else {
+                guidelinesButton.classList.add('redacted-button');
+                guidelinesButton.textContent = '[REDACTED]';
+                guidelinesButton.disabled = true;
+            }
+
+            // Applications always visible
+            applicationsButton.classList.remove('redacted-button');
+            applicationsButton.textContent = 'APPLICATIONS';
+            applicationsButton.disabled = false;
+        }
+
+        function setupGuidelinesMenu() {
+            const staffBtn = document.getElementById('staffBtn');
+            const actorBtn = document.getElementById('actorBtn');
+            const mtfBtn = document.getElementById('mtfBtn');
+            const feBtn = document.getElementById('feBtn');
+            const o5Btn = document.getElementById('o5Btn');
+
+            const isO5 = currentLevel && currentLevel.startsWith('o5_');
+            const isAdmin = currentLevel === 'admin';
+            const levelNum = currentLevel && !isO5 && !isAdmin ? parseInt(currentLevel.charAt(1)) : 0;
+
+            // Staff Guidelines: L2+
+            if (levelNum >= 2 || isO5 || isAdmin) {
+                staffBtn.classList.remove('redacted-button');
+                staffBtn.textContent = '[Staff Guidelines]';
+                staffBtn.disabled = false;
+            } else {
+                staffBtn.classList.add('redacted-button');
+                staffBtn.textContent = '[REDACTED]';
+                staffBtn.disabled = true;
+            }
+
+            // Actor, MTF, FE: L3+
+            const hasL3Access = levelNum >= 3 || isO5 || isAdmin;
+            if (hasL3Access) {
+                actorBtn.classList.remove('redacted-button');
+                actorBtn.textContent = '[Actor Guidelines]';
+                actorBtn.disabled = false;
+
+                mtfBtn.classList.remove('redacted-button');
+                mtfBtn.textContent = '[MTF Guidelines]';
+                mtfBtn.disabled = false;
+
+                feBtn.classList.remove('redacted-button');
+                feBtn.textContent = '[FE Guidelines]';
+                feBtn.disabled = false;
+            } else {
+                actorBtn.classList.add('redacted-button');
+                actorBtn.textContent = '[REDACTED]';
+                actorBtn.disabled = true;
+
+                mtfBtn.classList.add('redacted-button');
+                mtfBtn.textContent = '[REDACTED]';
+                mtfBtn.disabled = true;
+
+                feBtn.classList.add('redacted-button');
+                feBtn.textContent = '[REDACTED]';
+                feBtn.disabled = true;
+            }
+
+            // O5 Guidelines: O5/Admin only
+            if (isO5 || isAdmin) {
+                o5Btn.classList.remove('redacted-button');
+                o5Btn.textContent = '[O5 Guidelines]';
+                o5Btn.disabled = false;
+            } else {
+                o5Btn.classList.add('redacted-button');
+                o5Btn.textContent = '[REDACTED]';
+                o5Btn.disabled = true;
+            }
+        }
+
+        function startGlitchEffect() {
+            if (glitchInterval) clearInterval(glitchInterval);
+            glitchInterval = setInterval(() => {
+                const glitch = document.createElement('div');
+                glitch.className = 'scanline-glitch';
+                document.body.appendChild(glitch);
+                setTimeout(() => glitch.remove(), 300);
+            }, 15000 + Math.random() * 20000);
+        }
+
+        function showMenu(menu) {
+            const screens = [
+                'dashboard', 'applications-menu', 'guidelines-menu',
+                'o5-guidelines-screen', 'mtf-guidelines-screen', 'staff-guidelines-screen',
+                'actor-guidelines-screen', 'fe-guidelines-screen'
+            ];
+            screens.forEach(id => document.getElementById(id).style.display = 'none');
+
+            if (menu === 'applications') {
+                document.getElementById('applications-menu').style.display = 'flex';
+            } else if (menu === 'guidelines') {
+                document.getElementById('guidelines-menu').style.display = 'flex';
+                setupGuidelinesMenu();
+            } else if (menu === 'staff-guidelines') {
+                document.getElementById('staff-guidelines-screen').style.display = 'flex';
+            } else if (menu === 'actor-guidelines') {
+                document.getElementById('actor-guidelines-screen').style.display = 'flex';
+            } else if (menu === 'mtf-guidelines') {
+                document.getElementById('mtf-guidelines-screen').style.display = 'flex';
+            } else if (menu === 'fe-guidelines') {
+                document.getElementById('fe-guidelines-screen').style.display = 'flex';
+            } else if (menu === 'o5-guidelines') {
+                document.getElementById('o5-guidelines-screen').style.display = 'flex';
+            }
+        }
+
+        function backToMain() {
+            showMenu('');
+            document.getElementById('dashboard').style.display = 'flex';
+        }
+    </script>
+</body>
+</html>
